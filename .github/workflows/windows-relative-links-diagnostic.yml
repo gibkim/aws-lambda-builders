@@ -15,18 +15,27 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: 5e4141d1c05218c1ec2539a15d4836799cc91fa4
+          ref: bbcf1e51be86a8398da6ffa259c2dcf556583c90
       - uses: actions/setup-python@v7
         with:
           python-version: '3.14'
       - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d
       - name: Verify fixed source
         run: |
-          test "$(git rev-parse HEAD)" = "5e4141d1c05218c1ec2539a15d4836799cc91fa4"
+          test "$(git rev-parse HEAD)" = "bbcf1e51be86a8398da6ffa259c2dcf556583c90"
           python -c "import platform; print(platform.platform()); print(platform.python_version())"
           git rev-parse HEAD^{tree}
       - name: Install repository dependencies
         run: make init
+      - name: Check out diagnostic tools only
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          path: _diagnostic_tools
+          persist-credentials: false
+          sparse-checkout: .github/diagnostics
+      - name: Compare native Windows path strategies
+        run: python _diagnostic_tools/.github/diagnostics/native_path_strategies.py --output windows-link-strategies.json
       - name: Test affected paths on Windows
         run: |
           unset RUST_LOG
@@ -36,6 +45,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: windows-related-report
-          path: windows-related.xml
+          path: |
+            windows-related.xml
+            windows-link-strategies.json
           if-no-files-found: ignore
           retention-days: 7
