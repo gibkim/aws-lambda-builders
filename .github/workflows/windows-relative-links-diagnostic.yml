@@ -1,4 +1,4 @@
-name: Windows relative source link diagnostic
+name: Windows origin-aware symlink strategy experiment
 on:
   push:
     branches:
@@ -6,47 +6,25 @@ on:
 permissions:
   contents: read
 jobs:
-  windows-related:
+  windows-strategy:
     runs-on: windows-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
     defaults:
       run:
         shell: bash
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: bbcf1e51be86a8398da6ffa259c2dcf556583c90
+          persist-credentials: false
       - uses: actions/setup-python@v7
         with:
           python-version: '3.14'
-      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d
-      - name: Verify fixed source
-        run: |
-          test "$(git rev-parse HEAD)" = "bbcf1e51be86a8398da6ffa259c2dcf556583c90"
-          python -c "import platform; print(platform.platform()); print(platform.python_version())"
-          git rev-parse HEAD^{tree}
-      - name: Install repository dependencies
-        run: make init
-      - name: Check out diagnostic tools only
-        uses: actions/checkout@v7
-        with:
-          ref: ${{ github.sha }}
-          path: _diagnostic_tools
-          persist-credentials: false
-          sparse-checkout: .github/diagnostics
-      - name: Compare native Windows path strategies
-        run: python _diagnostic_tools/.github/diagnostics/native_path_strategies.py --output windows-link-strategies.json
-      - name: Test affected paths on Windows
-        run: |
-          unset RUST_LOG
-          python -m pytest -q tests/unit/test_utils.py tests/unit/test_actions.py tests/functional/test_utils.py tests/functional/test_actions.py tests/functional/test_relative_symlinks.py --junitxml=windows-related.xml
-      - name: Save diagnostic test report
+      - name: Compare origin-aware native path strategy
+        run: python .github/diagnostics/v3_origin_aware_probe.py windows-origin-aware.json
+      - name: Save experimental results
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: windows-related-report
-          path: |
-            windows-related.xml
-            windows-link-strategies.json
-          if-no-files-found: ignore
+          name: windows-origin-aware-report
+          path: windows-origin-aware.json
           retention-days: 7
