@@ -1,4 +1,4 @@
-name: Windows origin-aware symlink strategy experiment
+name: Windows candidate repository preflight
 on:
   push:
     branches:
@@ -6,25 +6,53 @@ on:
 permissions:
   contents: read
 jobs:
-  windows-strategy:
+  windows-preflight:
     runs-on: windows-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ['3.10', '3.14']
     defaults:
       run:
         shell: bash
     steps:
       - uses: actions/checkout@v7
         with:
+          ref: cf5021a712638ce999f70b0ab6efd4e6b8a9e218
           persist-credentials: false
       - uses: actions/setup-python@v7
         with:
-          python-version: '3.14'
-      - name: Compare origin-aware native path strategy
-        run: python .github/diagnostics/v3_origin_aware_probe.py windows-origin-aware.json
-      - name: Save experimental results
+          python-version: ${{ matrix.python }}
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d
+      - name: Verify candidate source
+        run: |
+          test "$(git rev-parse HEAD)" = "cf5021a712638ce999f70b0ab6efd4e6b8a9e218"
+          test "$(git rev-parse HEAD^{tree})" = "2c9348287b8a985209d75e7e9f4dae29370c9fa3"
+      - name: Repository preflight
+        env:
+          PYTEST_ADDOPTS: --junitxml=windows-preflight.xml
+        run: |
+          unset RUST_LOG
+          make pr
+      - name: Check out diagnostic tools
+        if: always()
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          path: _diagnostic_tools
+          persist-credentials: false
+          sparse-checkout: .github/diagnostics
+      - name: Native source target adversarial cases
+        if: always()
+        run: python _diagnostic_tools/.github/diagnostics/product_adversarial.py
+      - name: Save native test reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: windows-origin-aware-report
-          path: windows-origin-aware.json
+          name: windows-preflight-${{ matrix.python }}
+          path: |
+            windows-preflight.xml
+            windows-product-adversarial.json
+          if-no-files-found: warn
           retention-days: 7
